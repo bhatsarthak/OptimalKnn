@@ -1,4 +1,8 @@
 
+/**
+ * @author sarthakbhat
+ *
+ */
 public class OptimalRetailStore {
 
 	public static void main(String[] args) {
