@@ -1,4 +1,8 @@
 
+/**
+ * @author sarthakbhat
+ *
+ */
 public class LocationData {
 	private int placeId;
 	private double latitude;
