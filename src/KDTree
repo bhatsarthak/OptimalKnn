@@ -12,7 +12,7 @@ class GeographicalInfo :
         
 def main():
     # parse command line options
-    file = '/home/sarthakbhat/workspace/OptimalRetailStorePlacement/src/input/newyork_locdateDummy.txt'
+    file = '/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/newyork_locdate.txt'
     data = []
     geoDict = {}
     with open(file) as f:
