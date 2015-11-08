@@ -10,6 +10,7 @@ import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
 
+import java.sql.Date;
 import java.util.Map;
 import java.util.HashMap;
 import java.util.SortedMap;
@@ -24,8 +25,13 @@ public class SimpleApp {
 		try {
 			Integer k = 5;
 			Integer d = 2;
-			String datasetR = "/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/sample.txt";
-			String datasetS = "/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/sample.txt";
+			String datasetR = args[0];//"/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/newyork_locdate.txt";
+			String datasetS = args[0];//"/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/newyork_locdate.txt";
+			//String datasetR = "/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/sample.txt";
+			//String datasetS = "/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/sample.txt";
+
+			Date d1 =  new Date(System.currentTimeMillis());
+			long start=d1.getTime();
 			SparkConf conf = new SparkConf().setAppName("knn");
 			JavaSparkContext ctx = new JavaSparkContext(conf);
 			final Broadcast<Integer> broadcastK = ctx.broadcast(k);
@@ -47,16 +53,18 @@ public class SimpleApp {
 								String[] rTokens = rRecord.split("\\*");
 
 								String rRecordID = rTokens[0];
-								
-								String r =  rTokens[2].substring(1,
-								rTokens[2].length() - 1);// r.1, r.2, ...,
-								
+
+								String r = rTokens[2].substring(1,
+										rTokens[2].length() - 1);// r.1, r.2,
+																	// ...,
+
 								String[] sTokens = sRecord.split("\\*");
 								// sTokens[0] = s.recordID
 								String sClassificationID = sTokens[0];
 								String s = sTokens[2].substring(1,
-										sTokens[2].length() -1); // s.1, s.2, ...,
-												// s.d
+										sTokens[2].length() - 1); // s.1, s.2,
+																	// ...,
+								// s.d
 								Integer d = broadcastD.value();
 								double distance = calculateDistance(r, s, d);
 								String K = rRecordID; // r.recordID
@@ -72,10 +80,30 @@ public class SimpleApp {
 							return null;
 						}
 					});
-			knnMapped.saveAsTextFile("/home/sarthakbhat/output/knnMapped");
-			JavaPairRDD<String, Iterable<Tuple2<Double,String>>> knnGrouped =
-					knnMapped.groupByKey();
-			
+
+			JavaPairRDD<String, Iterable<Tuple2<Double, String>>> knnGrouped = knnMapped
+					.groupByKey();
+			JavaPairRDD<String, String> knnOutput = knnGrouped
+					.mapValues(new Function<Iterable<Tuple2<Double, String>>, // input
+					String // output (classification)
+					>() {
+						public String call(
+								Iterable<Tuple2<Double, String>> neighbors) {
+							Integer k = broadcastK.value();
+							SortedMap<Double, String> nearestK = findNearestK(
+									neighbors, k);
+							String selectedClassification="";
+							for (Map.Entry<Double, String> entry : nearestK.entrySet()) {
+							selectedClassification  = selectedClassification + "NeighbourID:"+ entry.getValue() +"+++NeighbourDistance" +entry.getKey().toString()+"\n";
+							}
+							return selectedClassification;
+						}
+					});
+			Date d2 =  new Date(System.currentTimeMillis());
+			long end=d2.getTime();
+			//knnOutput.saveAsTextFile("/home/sarthakbhat/output/knnOutput");
+			knnOutput.saveAsTextFile(args[1]);
+			System.out.println("Total time taken:"+ (end-start));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
@@ -86,17 +114,16 @@ public class SimpleApp {
 			String r[] = rAsString.split(",");
 			String s[] = sAsString.split(",");
 			// d is the number of dimensions in the vector
-/*			if (r.size() != 6) {
-				return Double.NaN;
-			}
-			if (s.size() != 6) {
-				return Double.NaN;
-			}*/
+			/*
+			 * if (r.size() != 6) { return Double.NaN; } if (s.size() != 6) {
+			 * return Double.NaN; }
+			 */
 			// here we have (r.size() == s.size() == d)
 			double sum = 0.0;
-			for (int i = 0; i < d -1; i++) {
-				
-				double difference = Double.parseDouble(r[i]) - Double.parseDouble(s[i]);
+			for (int i = 0; i < d - 1; i++) {
+
+				double difference = Double.parseDouble(r[i])
+						- Double.parseDouble(s[i]);
 				sum += difference * difference;
 			}
 			return Math.sqrt(sum);
@@ -123,23 +150,22 @@ public class SimpleApp {
 		 * list.add(data); } return list;
 		 */
 	}
-	
+
 	static SortedMap<Double, String> findNearestK(
-			Iterable<Tuple2<Double,String>> neighbors,
-			int k) {
-			// keep only k nearest neighbors
-			SortedMap<Double, String> nearestK = new TreeMap<Double, String>();
-			for (Tuple2<Double,String> neighbor : neighbors) {
+			Iterable<Tuple2<Double, String>> neighbors, int k) {
+		// keep only k nearest neighbors
+		SortedMap<Double, String> nearestK = new TreeMap<Double, String>();
+		for (Tuple2<Double, String> neighbor : neighbors) {
 			Double distance = neighbor._1;
 			String classificationID = neighbor._2;
 			nearestK.put(distance, classificationID);
 			// keep only k nearest neighbors
 			if (nearestK.size() > k) {
-			// remove the last-highest-distance neighbor from nearestK
-			nearestK.remove(nearestK.lastKey());
+				// remove the last-highest-distance neighbor from nearestK
+				nearestK.remove(nearestK.lastKey());
 			}
-			}
-			return nearestK;
-			}
+		}
+		return nearestK;
+	}
 
 }
