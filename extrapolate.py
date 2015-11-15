@@ -17,6 +17,10 @@ def main():
     data = []
     geoDict = {}
     start = datetime.datetime.now()
+    minLat = 10000
+    minLong = minLat
+    maxLat =-10000
+    maxLong = maxLat
     with open(file) as f:
         for line in f:
             geoDataArray = line.rstrip('\n').split(';')
@@ -24,26 +28,19 @@ def main():
             locData = geoDataArray[1].lstrip('*(').rstrip(')*').split(',')
             locTuple = (float(locData[0].strip()), float(locData[1].strip()))
                 # Open the text file and load the latitude and longitude of place into data
+            if(locTuple[0]<minLat) :
+                minLat = locTuple[0]
+            if(locTuple[0]>maxLat) :
+                maxLat= locTuple[0]
+            if(abs(locTuple[1])<abs(minLong)):
+                minLong= locTuple[1]
+            if(abs(locTuple[1])> abs(maxLong)):
+                maxLong = locTuple[1]          
             data.append(locTuple)
             # Load a dictionary with key as place ID and location info as value    
             geoDict[placeID] = locData
     #Create the KD Tree
-    tree = spatial.KDTree(data)
-    f = open('/home/sarthakbhat/workspace/OptimalRetailStorePlacement/serialOutput', 'r+')
-    for item in geoDict:
-        sourceLatitude = float(geoDict[item][0].strip())
-        sourceLongitude = float(geoDict[item][1].strip())
-        f.write('****************')
-        f.write('Source:'+ str(sourceLatitude) + str(sourceLongitude) +'\n')
-        f.write( str([data[i] for i in tree.query_ball_point([sourceLatitude, sourceLongitude], 0.01)]))
-        f.write('****************')
-    f.Close()
-    end = datetime.datetime.now()
-    print '\n'
-    print start
-    print end
-    print end-start
-        
+
+    print minLat + minLong + maxLat + maxLong    
 if __name__ == "__main__":
     main()
-
