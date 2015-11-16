@@ -33,7 +33,7 @@ public class OptimalKnn {
 		final Broadcast<Integer> broadcastK = ctx.broadcast(k);
 		final Broadcast<Integer> broadcastD = ctx.broadcast(d);
 		JavaRDD<String> R = ctx.textFile(datasetR, 1);
-		JavaRDD<String> squareOfR =R.map(new Function<String, String>() {
+/*		JavaRDD<String> squareOfR =R.map(new Function<String, String>() {
 			  public String call(String s) { 
 				    String[] rTokens = s.split("\\*");
 					String rRecordID = rTokens[0];
@@ -43,8 +43,23 @@ public class OptimalKnn {
 					Float lon = Float.parseFloat(r.split(",")[1]);
 					Float eucledian = lat * lat + lon * lon;
 				    return eucledian.toString() +">>"+lat.toString() +">>"+lon.toString() + ">>"+ rRecordID; }
-			});
-		
-		squareOfR.saveAsTextFile("/home/sarthakbhat/workspace/OptimalRetailStorePlacement/output");
+			});*/	
+		PairFunction<String, String, String> keyData =
+				  new PairFunction<String, String, String>() {
+				  public Tuple2<String, String> call(String s) {
+					  String[] rTokens = s.split("\\*");
+						String rRecordID = rTokens[0];
+						String r = rTokens[2].substring(1,
+								rTokens[2].length() - 1);
+						Float lat = Float.parseFloat(r.split(",")[0]);
+						Float lon = Float.parseFloat(r.split(",")[1]);
+						Float eucledian = lat * lat + lon * lon;
+					    String key = eucledian.toString() +">>"+lat.toString() +">>"+lon.toString();
+				        return new Tuple2(key, rRecordID);
+				  }
+				};
+				JavaPairRDD<String, String> pairs = R.mapToPair(keyData);
+				JavaPairRDD<String, String> sortedPairs = pairs.sortByKey();
+				sortedPairs.saveAsTextFile("/home/sarthakbhat/workspace/OptimalRetailStorePlacement/output");
 	}
 }
