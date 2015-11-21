@@ -1,6 +1,9 @@
 import org.apache.spark.api.java.*;
+import org.apache.spark.AccumulatorParam;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
+import org.apache.spark.api.java.function.PairFlatMapFunction;
+import org.apache.spark.api.java.function.VoidFunction;
 
 import scala.Tuple2;
 
@@ -9,6 +12,7 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
+import org.apache.spark.Accumulator;
 
 import java.sql.Date;
 import java.util.LinkedList;
@@ -28,79 +32,84 @@ public class OptimalKnn {
 		Integer d = 2;
 		String datasetR = args[0];
 
-		Date d1 =  new Date(System.currentTimeMillis());
-		long startTime=d1.getTime();
+		Date d1 = new Date(System.currentTimeMillis());
+		long startTime = d1.getTime();
 		SparkConf conf = new SparkConf().setAppName("knn");
 		JavaSparkContext ctx = new JavaSparkContext(conf);
 		final Broadcast<Integer> broadcastK = ctx.broadcast(k);
 		final Broadcast<Integer> broadcastD = ctx.broadcast(d);
 		JavaRDD<String> R = ctx.textFile(datasetR, 1);
-		/*		JavaRDD<String> squareOfR =R.map(new Function<String, String>() {
-			  public String call(String s) { 
-				    String[] rTokens = s.split("\\*");
-					String rRecordID = rTokens[0];
-					String r = rTokens[2].substring(1,
-							rTokens[2].length() - 1);
-					Float lat = Float.parseFloat(r.split(",")[0]);
-					Float lon = Float.parseFloat(r.split(",")[1]);
-					Float eucledian = lat * lat + lon * lon;
-				    return eucledian.toString() +">>"+lat.toString() +">>"+lon.toString() + ">>"+ rRecordID; }
-			});*/	
-		PairFunction<String, String, String> keyData =
-				new PairFunction<String, String, String>() {
+
+		PairFunction<String, String, String> keyData = new PairFunction<String, String, String>() {
 			public Tuple2<String, String> call(String s) {
 				String[] rTokens = s.split("\\*");
 				String rRecordID = rTokens[0];
-				String r = rTokens[2].substring(1,
-						rTokens[2].length() - 1);
-				Float lat = Float.parseFloat(r.split(",")[0]);
-				Float lon = Float.parseFloat(r.split(",")[1]);
-				Float eucledian = lat * lat + lon * lon;
-				String key = eucledian.toString() +">>"+lat.toString() +">>"+lon.toString();
+				String r = rTokens[2].substring(1, rTokens[2].length() - 1);
+				Double lat = Double.parseDouble(r.split(",")[0]);
+				Double lon = Double.parseDouble(r.split(",")[1]);
+				Double eucledian = lat * lat + lon * lon;
+				String key = eucledian.toString() + ">>" + lat.toString()
+						+ ">>" + lon.toString();
 				return new Tuple2(key, rRecordID);
 			}
 		};
+
 		JavaPairRDD<String, String> pairs = R.mapToPair(keyData);
 		JavaPairRDD<String, String> sortedPairs = pairs.sortByKey();
-		//sortedPairs.saveAsTextFile(args[1]);
-		List<Tuple2<String,String>> sortedList = new LinkedList<Tuple2<String,String>>();
-		sortedList = sortedPairs.collect();
-		for(int i =0;i < sortedList.size();i++){
-			int start = (k<i) ?(i-k) :0;
-			System.out.println("Start:"+start);
-			int max = sortedList.size();
-			System.out.println("MaxVal"+max);
-			int end = (i+k>(max-1))?max-1:(i+k);
-			System.out.println("End:"+end);
-			String sourcePlaceId=sortedList.get(i)._2;
-			String sourceData =sortedList.get(i)._1;
-            System.out.println("The source is :"+sourceData);
-			TreeSet <String> ts = new TreeSet<String>();
-			String[] tsToArray = new String[ts.size()];
-			for(int j=start;j<=end;j++){						
-						String destPlaceId=sortedList.get(j)._2;					
-						String destData= sortedList.get(j)._1;
-						String distance = calculateDistance(sourceData,destData);
-						ts.add(distance + ">>" + String.valueOf(j));
-			}
+
+		List<Tuple2<String, String>> sortedList = sortedPairs
+				.take((int) sortedPairs.count());
+		String minKey = sortedList.get(0)._1;
+		String maxKey = sortedList.get(sortedList.size() - 1)._1;
+		Double min = Double.parseDouble(minKey.split(">>")[0]);
+		Double max = Double.parseDouble(maxKey.split(">>")[0]);
+		System.out.println("MAX:"+max+"MIN:"+min);
+		Double sizeOfPartition = (max - min) / 1000;
+		final Broadcast<Double> broadcastMin = ctx.broadcast(min);
+		final Broadcast<Double> broadcastMax = ctx.broadcast(max);
+		final Broadcast<Double> broadcastPartitionSize = ctx
+				.broadcast(sizeOfPartition);
+
+		JavaPairRDD<Integer, Tuple2<String,String>> output = sortedPairs
+				.flatMapToPair(new PairFlatMapFunction<Tuple2<String, String>, Integer, Tuple2<String,String>>() {
+
+					public Iterable<Tuple2<Integer, Tuple2<String, String>>> call(
+							Tuple2<String, String> input) {
+						List<Tuple2<Integer, Tuple2<String,String>>> partitionResult = new ArrayList<Tuple2<Integer, Tuple2<String,String>>>();
+						Double distFromOrigin = Double.parseDouble(input._1.split(">>")[0]);
+						Double minVal = broadcastMin.getValue();
+						Double partitionSize = broadcastPartitionSize.getValue();
+						Double diffFromMin = distFromOrigin-minVal;
 			
-			ts.toArray(tsToArray);
-			System.out.println("The nearest neighbour is:" +ts.size());
-			for(String element:ts) {
-				int index = Integer.parseInt(element.split(">>")[1]);
-				System.out.println( sortedList.get(index)._1);
-				
-			}
-/*			for(int j=0;j< tsToArray.length;j++){							
-				int index = Integer.parseInt(tsToArray[j].split(">>")[1]);
-				System.out.println(String.valueOf(index));
-				System.out.println( sortedList.get(index)._1);
-				System.out.println(tsToArray[j]);
-			}*/
-		}
-		Date d2 =  new Date(System.currentTimeMillis());
-		long end=d2.getTime();
-		System.out.println("Total time taken:"+ (end-startTime));
+						int currentPartition=(int) (diffFromMin / partitionSize);
+						System.out.println("minVal:"+ minVal+"partitionSize:"+partitionSize+"DiffFromMin:"+diffFromMin+"CurrentPartition:"+currentPartition);
+						//Add the current partition to results
+						Tuple2<Integer,Tuple2<String,String>> temp = new Tuple2<Integer,Tuple2<String,String>>(currentPartition, input);
+						partitionResult.add(temp);
+						//Check if the point is in the boundry of the current partition and add it if yes
+						double pointPositionInPartition = diffFromMin%partitionSize;
+						pointPositionInPartition -= (long)pointPositionInPartition;
+						//Assume its very close to the previous quadrant
+						if(pointPositionInPartition<0.2){
+							if(currentPartition > 0){
+								
+								Tuple2<Integer,Tuple2<String,String>> temp1 = new Tuple2<Integer,Tuple2<String,String>>(currentPartition-1, input);
+								partitionResult.add(temp1);
+							}
+						}
+						else if(pointPositionInPartition>0.7){
+							Tuple2<Integer,Tuple2<String,String>> temp2 = new Tuple2<Integer,Tuple2<String,String>>(currentPartition+1, input);
+							partitionResult.add(temp2);
+						}
+						return partitionResult;
+					}
+
+				});
+
+		output.saveAsTextFile(args[1]);
+		Date d2 = new Date(System.currentTimeMillis());
+		long end = d2.getTime();
+		System.out.println("Total time taken:" + (end - startTime));
 	}
 
 	static String calculateDistance(String rAsString, String sAsString) {
@@ -109,8 +118,8 @@ public class OptimalKnn {
 		String s[] = sAsString.split(">>");
 		// d is the number of dimensions in the vector
 		/*
-		 * if (r.size() != 6) { return Double.NaN; } if (s.size() != 6) {
-		 * return Double.NaN; }
+		 * if (r.size() != 6) { return Double.NaN; } if (s.size() != 6) { return
+		 * Double.NaN; }
 		 */
 		// here we have (r.size() == s.size() == d)
 		double sum = 0.0;
@@ -123,4 +132,3 @@ public class OptimalKnn {
 		return String.valueOf(Math.sqrt(sum));
 	}
 }
-
