@@ -1,0 +1,2 @@
+#Installing and running spark
+./spark-submit --class "OptimalKnn" --master local[4] /home/sarthakbhat/workspace/OptimalRetailStorePlacement/target/simple-project-1.0.jar /home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/1million.txt /home/sarthakbhat/output/knnOutput

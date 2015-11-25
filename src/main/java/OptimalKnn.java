@@ -15,6 +15,8 @@ import org.apache.spark.api.java.function.PairFunction;
 import org.apache.spark.Accumulator;
 
 import java.sql.Date;
+import java.text.DateFormat;
+import java.text.SimpleDateFormat;
 import java.util.LinkedList;
 import java.util.Map;
 import java.util.HashMap;
@@ -25,6 +27,8 @@ import java.util.List;
 import java.util.ArrayList;
 import java.util.TreeSet;
 
+import javax.print.attribute.standard.DateTimeAtCompleted;
+
 import com.google.common.base.Splitter;
 
 public class OptimalKnn {
@@ -33,11 +37,11 @@ public class OptimalKnn {
 		Integer d = 2;
 		String datasetR = args[0];
 		Integer noOfPartitions = 2;
-		if(args.length > 2){
-			noOfPartitions=Integer.parseInt(args[2]);
+		if (args.length > 2) {
+			noOfPartitions = Integer.parseInt(args[2]);
 		}
-		if(args.length > 3){
-			k=Integer.parseInt(args[3]);
+		if (args.length > 3) {
+			k = Integer.parseInt(args[3]);
 		}
 		Date d1 = new Date(System.currentTimeMillis());
 		long startTime = d1.getTime();
@@ -60,7 +64,7 @@ public class OptimalKnn {
 				return new Tuple2(key, rRecordID);
 			}
 		};
-
+	
 		JavaPairRDD<String, String> pairs = R.mapToPair(keyData);
 		JavaPairRDD<String, String> sortedPairs = pairs.sortByKey();
 
@@ -90,10 +94,6 @@ public class OptimalKnn {
 						Double diffFromMin = distFromOrigin - minVal;
 
 						int currentPartition = (int) (diffFromMin / partitionSize);
-						System.out.println("minVal:" + minVal
-								+ "partitionSize:" + partitionSize
-								+ "DiffFromMin:" + diffFromMin
-								+ "CurrentPartition:" + currentPartition);
 						// Add the current partition to results
 						Tuple2<Integer, Tuple2<String, String>> temp = new Tuple2<Integer, Tuple2<String, String>>(
 								currentPartition, input);
@@ -120,8 +120,17 @@ public class OptimalKnn {
 					}
 
 				});
-		JavaPairRDD<Integer, Iterable<Tuple2<String, String>>> knnGrouped = output
+
+		System.out.println("Passed second map reduce at:");
+		DateFormat dateFormat = new SimpleDateFormat("yyyy/MM/dd HH:mm:ss");
+		// get current date time with Date()
+		Date date = new Date(startTime);
+		System.out.println(dateFormat.format(date));
+			JavaPairRDD<Integer, Iterable<Tuple2<String, String>>> knnGrouped = output
 				.groupByKey();
+
+		System.out.println("Passed second map reduce group by at:");
+		System.out.println(dateFormat.format(new Date(startTime)));
 
 		JavaPairRDD<Integer, Tuple2<Integer, String>> finalOutput = knnGrouped
 				.flatMapToPair(new PairFlatMapFunction<Tuple2<Integer, Iterable<Tuple2<String, String>>>, Integer, Tuple2<Integer, String>>() {
@@ -139,11 +148,13 @@ public class OptimalKnn {
 										sourceData._1, destinationData._1);
 								int destinationPlaceID = Integer
 										.parseInt(destinationData._2);
-								Tuple2<Integer,String> temp= new Tuple2<Integer,String>(destinationPlaceID, distanceCalcualted);
-								Tuple2<Integer,Tuple2<Integer,String>> temp1 = new Tuple2<Integer,Tuple2<Integer,String>>(sourcePlaceID,temp);
+								Tuple2<Integer, String> temp = new Tuple2<Integer, String>(
+										destinationPlaceID, distanceCalcualted);
+								Tuple2<Integer, Tuple2<Integer, String>> temp1 = new Tuple2<Integer, Tuple2<Integer, String>>(
+										sourcePlaceID, temp);
 								finalOutputElement.add(temp1);
 							}
-					
+
 						}
 						return finalOutputElement;
 
@@ -151,25 +162,39 @@ public class OptimalKnn {
 
 				});
 		
-		JavaPairRDD<Integer, Iterable<Tuple2<Integer, String>>> finalOutputGroupByKey=finalOutput.groupByKey();
-		
+		System.out.println("Passed third map reduce  at:");
+		System.out.println(dateFormat.format(new Date(startTime)));
+
+		JavaPairRDD<Integer, Iterable<Tuple2<Integer, String>>> finalOutputGroupByKey = finalOutput
+				.groupByKey();
+		System.out.println("Passed third map reduce groupby at:");
+		System.out.println(dateFormat.format(new Date(startTime)));
+
 		JavaPairRDD<Integer, Tuple2<Integer, Double>> kNearestNeighbour = finalOutputGroupByKey
 				.flatMapToPair(new PairFlatMapFunction<Tuple2<Integer, Iterable<Tuple2<Integer, String>>>, Integer, Tuple2<Integer, Double>>() {
 
 					public Iterable<Tuple2<Integer, Tuple2<Integer, Double>>> call(
-							Tuple2<Integer, Iterable<Tuple2<Integer, String>>> input){
-						SortedMap<Double, Integer> nearestK=findNearestK(input._2,broadcastK.getValue());
-						
+							Tuple2<Integer, Iterable<Tuple2<Integer, String>>> input) {
+						SortedMap<Double, Integer> nearestK = findNearestK(
+								input._2, broadcastK.getValue());
+
 						List<Tuple2<Integer, Tuple2<Integer, Double>>> nearestKArrayList = new ArrayList<Tuple2<Integer, Tuple2<Integer, Double>>>();
-						
-						for (Entry<Double, Integer> entry : nearestK.entrySet()){
-							Tuple2<Integer,Double> temp = new Tuple2<Integer,Double>(entry.getValue(),entry.getKey());
-							nearestKArrayList.add(new Tuple2<Integer,Tuple2<Integer,Double>>(input._1, temp));
+
+						for (Entry<Double, Integer> entry : nearestK.entrySet()) {
+							Tuple2<Integer, Double> temp = new Tuple2<Integer, Double>(
+									entry.getValue(), entry.getKey());
+							nearestKArrayList
+									.add(new Tuple2<Integer, Tuple2<Integer, Double>>(
+											input._1, temp));
 						}
 						return nearestKArrayList;
 					}
 				});
-		kNearestNeighbour.groupByKey().saveAsTextFile(args[1]);
+		System.out.println("Passed fourth map reduce  at:");
+		System.out.println(dateFormat.format(new Date(startTime)));
+		JavaPairRDD<Integer, Iterable<Tuple2<Integer, Double>>> kNearestNeighbourGrouped = kNearestNeighbour.groupByKey();
+		System.out.println("Passed fourth map reduce grp by at:");		
+		kNearestNeighbourGrouped.saveAsTextFile(args[1]);
 		Date d2 = new Date(System.currentTimeMillis());
 		long end = d2.getTime();
 		System.out.println("Total time taken:" + (end - startTime));
@@ -194,7 +219,7 @@ public class OptimalKnn {
 		}
 		return String.valueOf(Math.sqrt(sum));
 	}
-	
+
 	static SortedMap<Double, Integer> findNearestK(
 			Iterable<Tuple2<Integer, String>> neighbors, int k) {
 		// keep only k nearest neighbors
@@ -211,5 +236,5 @@ public class OptimalKnn {
 		}
 		return nearestK;
 	}
-	
+
 }

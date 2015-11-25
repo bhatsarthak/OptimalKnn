@@ -13,11 +13,11 @@ class GeographicalInfo :
         
 def main():
     # parse command line options
-    file = '/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/newyork_locdate.txt'
+    fileName = '/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/newyork_locdate.txt'
     data = []
     geoDict = {}
     start = datetime.datetime.now()
-    with open(file) as f:
+    with open(fileName) as f:
         for line in f:
             geoDataArray = line.rstrip('\n').split(';')
             placeID = geoDataArray[0].rstrip('*')
@@ -29,15 +29,26 @@ def main():
             geoDict[placeID] = locData
     #Create the KD Tree
     tree = spatial.KDTree(data)
+    print 'Writing the output'
     f = open('/home/sarthakbhat/workspace/OptimalRetailStorePlacement/serialOutput', 'r+')
+    print len(geoDict)
+    tt=0
     for item in geoDict:
+        print tt
         sourceLatitude = float(geoDict[item][0].strip())
         sourceLongitude = float(geoDict[item][1].strip())
-        f.write('****************')
         f.write('Source:'+ str(sourceLatitude) + str(sourceLongitude) +'\n')
-        f.write( str([data[i] for i in tree.query_ball_point([sourceLatitude, sourceLongitude], 0.01)]))
-        f.write('****************')
-    f.Close()
+        response = tree.query_ball_point([sourceLatitude, sourceLongitude], 0.01)
+        result=""
+        
+   #     for i in range(0,5 if len(response)>5 else len(response)):
+    #        result+= str(data[response[i]])
+        print( str([data[i] for i in tree.query_ball_point([sourceLatitude, sourceLongitude], 0.01)]))
+       # f.write(result)
+        #f.write('/n')
+        print result
+        tt+=1
+    f.close()
     end = datetime.datetime.now()
     print '\n'
     print start
@@ -46,4 +57,3 @@ def main():
         
 if __name__ == "__main__":
     main()
-
