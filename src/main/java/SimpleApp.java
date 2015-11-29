@@ -1,6 +1,7 @@
 import org.apache.spark.api.java.*;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
+import org.apache.spark.api.java.function.Function2;
 
 import scala.Tuple2;
 
@@ -25,13 +26,15 @@ public class SimpleApp {
 		try {
 			Integer k = 5;
 			Integer d = 2;
-			String datasetR = args[0];//"/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/newyork_locdate.txt";
-			String datasetS = args[0];//"/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/newyork_locdate.txt";
-			//String datasetR = "/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/sample.txt";
-			//String datasetS = "/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/sample.txt";
+			String datasetR = args[0];// "/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/newyork_locdate.txt";
+			String datasetS = args[0];// "/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/newyork_locdate.txt";
+			// String datasetR =
+			// "/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/sample.txt";
+			// String datasetS =
+			// "/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/sample.txt";
 
-			Date d1 =  new Date(System.currentTimeMillis());
-			long start=d1.getTime();
+			Date d1 = new Date(System.currentTimeMillis());
+			long start = d1.getTime();
 			SparkConf conf = new SparkConf().setAppName("knn");
 			JavaSparkContext ctx = new JavaSparkContext(conf);
 			final Broadcast<Integer> broadcastK = ctx.broadcast(k);
@@ -81,29 +84,98 @@ public class SimpleApp {
 						}
 					});
 
-			JavaPairRDD<String, Iterable<Tuple2<Double, String>>> knnGrouped = knnMapped
-					.groupByKey();
-			JavaPairRDD<String, String> knnOutput = knnGrouped
-					.mapValues(new Function<Iterable<Tuple2<Double, String>>, // input
-					String // output (classification)
-					>() {
-						public String call(
-								Iterable<Tuple2<Double, String>> neighbors) {
-							Integer k = broadcastK.value();
-							SortedMap<Double, String> nearestK = findNearestK(
-									neighbors, k);
-							String selectedClassification="";
-							for (Map.Entry<Double, String> entry : nearestK.entrySet()) {
-							selectedClassification  = selectedClassification + "NeighbourID:"+ entry.getValue() +"+++NeighbourDistance" +entry.getKey().toString()+"\n";
-							}
-							return selectedClassification;
+			
+			/*  JavaPairRDD<String, Iterable<Tuple2<Double, String>>> knnGrouped
+			  = knnMapped .groupByKey(); JavaPairRDD<String, String> knnOutput
+			  = knnGrouped .mapValues(new Function<Iterable<Tuple2<Double,
+			  String>>, // input String // output (classification) >() { public
+			  String call( Iterable<Tuple2<Double, String>> neighbors) {
+			  Integer k = broadcastK.value(); SortedMap<Double, String>
+			  nearestK = findNearestK( neighbors, k); String
+			  selectedClassification=""; for (Map.Entry<Double, String> entry :
+			  nearestK.entrySet()) { selectedClassification =
+			  selectedClassification + "NeighbourID:"+ entry.getValue()
+			  +"+++NeighbourDistance" +entry.getKey().toString()+"\n"; } return
+			  selectedClassification; } });*/
+			 
+			Function<Tuple2<Double, String>, List<Tuple2<Double,String>>> createCombiner = new Function<Tuple2<Double, String>, List<Tuple2<Double,String>>>() {
+				public List<Tuple2<Double,String>> call(Tuple2<Double, String> input)
+						throws Exception {
+					List<Tuple2<Double,String>> li = new ArrayList<Tuple2<Double,String>>();
+					li.add(input);
+					return li;
+				}
+			};
+			Function2<List<Tuple2<Double,String>>, Tuple2<Double, String>, List<Tuple2<Double,String>>> mergeValue = new Function2<List<Tuple2<Double,String>>, Tuple2<Double, String>,List<Tuple2<Double,String>>>() {
+				public List<Tuple2<Double,String>> call(List<Tuple2<Double,String>> a, Tuple2<Double, String> x) {
+						a.add(x);
+						return a;
+					// left as an exercise to an interested reader
+				}
+			};
+
+			Function2<List<Tuple2<Double, String>>, List<Tuple2<Double, String>>, List<Tuple2<Double, String>>> mergeCombiners = new Function2<List<Tuple2<Double,String>>,List<Tuple2<Double,String>>, List<Tuple2<Double,String>>>() {
+				public List<Tuple2<Double,String>> call(List<Tuple2<Double,String>> a,List<Tuple2<Double,String>> b) {
+					//Add the contents to the hashmap, if size exceeds k then remove the data
+/*					System.out.println("A Size"+a.size()+"B Size"+b.size());
+					SortedMap<Double, String> nearestK = new TreeMap<Double, String>();
+					for(Tuple2<Double,String> element:a){
+						nearestK.put(element._1, element._2);
+						if(nearestK.size() > broadcastK.getValue()){
+							nearestK.remove(nearestK.lastKey());
 						}
-					});
-			Date d2 =  new Date(System.currentTimeMillis());
-			long end=d2.getTime();
-			//knnOutput.saveAsTextFile("/home/sarthakbhat/output/knnOutput");
-			knnOutput.saveAsTextFile(args[1]);
-			System.out.println("Total time taken:"+ (end-start));
+					}
+					
+					for(Tuple2<Double,String> element:b){
+						nearestK.put(element._1, element._2);
+						if(nearestK.size() > broadcastK.getValue()){
+							nearestK.remove(nearestK.lastKey());
+						}
+					}
+					List<Tuple2<Double,String>> finalOutput = new ArrayList<Tuple2<Double,String>>();
+
+					for(Map.Entry<Double, String> entry: nearestK.entrySet()){
+						finalOutput.add(new Tuple2<Double,String>(entry.getKey(),entry.getValue()));
+					}
+					return null;*/
+					// left as an exercise to an interested reader
+					for(Tuple2<Double,String> element:b){
+						a.add(new Tuple2<Double,String>(element._1, element._2));
+					}
+					return a;
+				}
+			};
+
+			JavaPairRDD<String, List<Tuple2<Double, String>>> knnOutput = knnMapped.combineByKey(
+					createCombiner, mergeValue, mergeCombiners);
+			knnOutput.map(new Function<Tuple2<String,List<Tuple2<Double,String>>>, String>(){
+
+				public String call(
+						Tuple2<String, List<Tuple2<Double, String>>> input)
+						throws Exception {
+					String selectedClassification="SourceID:"+input._1+"\n";
+					SortedMap<Double, String> nearestK = new TreeMap<Double, String>();
+					for(Tuple2<Double,String> element:input._2){
+						nearestK.put(element._1, element._2);
+						if(nearestK.size() > broadcastK.getValue()){
+							nearestK.remove(nearestK.lastKey());
+						}
+						
+					}
+					
+					for(Map.Entry<Double, String> entry: nearestK.entrySet()){
+						 selectedClassification =
+								  selectedClassification + "NeighbourID:"+ entry.getValue()
+								  +"+++NeighbourDistance" +entry.getKey().toString()+"\n";
+					}
+					// TODO Auto-generated method stub
+					return selectedClassification;
+				}
+				
+			}).saveAsTextFile(args[1]);
+			Date d2 = new Date(System.currentTimeMillis());
+			long end = d2.getTime();
+			System.out.println("Total time taken:" + (end - start));
 		} catch (Exception e) {
 			e.printStackTrace();
 		}
