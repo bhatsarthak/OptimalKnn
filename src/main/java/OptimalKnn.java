@@ -2,6 +2,7 @@ import org.apache.spark.api.java.*;
 import org.apache.spark.AccumulatorParam;
 import org.apache.spark.SparkConf;
 import org.apache.spark.api.java.function.Function;
+import org.apache.spark.api.java.function.Function2;
 import org.apache.spark.api.java.function.PairFlatMapFunction;
 import org.apache.spark.api.java.function.VoidFunction;
 
@@ -36,7 +37,7 @@ public class OptimalKnn {
 		Integer k = 5;
 		Integer d = 2;
 		String datasetR = args[0];
-		Integer noOfPartitions = 2;
+		Integer noOfPartitions = 10000;
 		if (args.length > 2) {
 			noOfPartitions = Integer.parseInt(args[2]);
 		}
@@ -46,7 +47,7 @@ public class OptimalKnn {
 		Date d1 = new Date(System.currentTimeMillis());
 		long startTime = d1.getTime();
 		SparkConf conf = new SparkConf().setAppName("knn");
-		JavaSparkContext ctx = new JavaSparkContext(conf);
+		JavaSparkContext ctx = new JavaSparkContext(conf);	
 		final Broadcast<Integer> broadcastK = ctx.broadcast(k);
 		final Broadcast<Integer> broadcastD = ctx.broadcast(d);
 		JavaRDD<String> R = ctx.textFile(datasetR, 1);
@@ -63,11 +64,9 @@ public class OptimalKnn {
 						+ ">>" + lon.toString();
 				return new Tuple2(key, rRecordID);
 			}
-		};
-	
+		};	
 		JavaPairRDD<String, String> pairs = R.mapToPair(keyData);
 		JavaPairRDD<String, String> sortedPairs = pairs.sortByKey();
-
 		List<Tuple2<String, String>> sortedList = sortedPairs
 				.take((int) sortedPairs.count());
 		String minKey = sortedList.get(0)._1;
@@ -79,7 +78,7 @@ public class OptimalKnn {
 		final Broadcast<Double> broadcastMin = ctx.broadcast(min);
 		final Broadcast<Double> broadcastPartitionSize = ctx
 				.broadcast(sizeOfPartition);
-
+//Maps the points into their partitions
 		JavaPairRDD<Integer, Tuple2<String, String>> output = sortedPairs
 				.flatMapToPair(new PairFlatMapFunction<Tuple2<String, String>, Integer, Tuple2<String, String>>() {
 
@@ -104,7 +103,7 @@ public class OptimalKnn {
 								% partitionSize;
 						pointPositionInPartition -= (long) pointPositionInPartition;
 						// Assume its very close to the previous quadrant
-						if (pointPositionInPartition < 0.2) {
+						if (pointPositionInPartition < 0.3) {
 							if (currentPartition > 0) {
 
 								Tuple2<Integer, Tuple2<String, String>> temp1 = new Tuple2<Integer, Tuple2<String, String>>(
@@ -126,13 +125,11 @@ public class OptimalKnn {
 		// get current date time with Date()
 		Date date = new Date(startTime);
 		System.out.println(dateFormat.format(date));
-			JavaPairRDD<Integer, Iterable<Tuple2<String, String>>> knnGrouped = output
-				.groupByKey();
-
+		JavaPairRDD<Integer, Iterable<Tuple2<String, String>>> partitionGrouped = output.groupByKey();
 		System.out.println("Passed second map reduce group by at:");
 		System.out.println(dateFormat.format(new Date(startTime)));
 
-		JavaPairRDD<Integer, Tuple2<Integer, String>> finalOutput = knnGrouped
+		JavaPairRDD<Integer, Tuple2<Integer, String>> finalOutput = partitionGrouped
 				.flatMapToPair(new PairFlatMapFunction<Tuple2<Integer, Iterable<Tuple2<String, String>>>, Integer, Tuple2<Integer, String>>() {
 
 					public Iterable<Tuple2<Integer, Tuple2<Integer, String>>> call(
@@ -194,7 +191,7 @@ public class OptimalKnn {
 		System.out.println(dateFormat.format(new Date(startTime)));
 		JavaPairRDD<Integer, Iterable<Tuple2<Integer, Double>>> kNearestNeighbourGrouped = kNearestNeighbour.groupByKey();
 		System.out.println("Passed fourth map reduce grp by at:");		
-		kNearestNeighbourGrouped.saveAsTextFile(args[1]);
+		kNearestNeighbourGrouped.saveAsTextFile(args[1]+startTime);
 		Date d2 = new Date(System.currentTimeMillis());
 		long end = d2.getTime();
 		System.out.println("Total time taken:" + (end - startTime));

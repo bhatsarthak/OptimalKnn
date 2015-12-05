@@ -62,7 +62,7 @@ def main():
         quadrantNoVsPlacesCount[quandrantNo] += 1
     #scale the number of places to 10 million
     placeID=1;
-    f = open('/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/100k.txt', 'r+')
+    f = open('/home/sarthakbhat/workspace/OptimalRetailStorePlacement/input/500k.txt', 'r+')
     for qudrant in quadrantNoVsPlacesCount:
         noOfDeltaY = qudrant//100;
         noofDeltaX = qudrant%100;
@@ -72,7 +72,7 @@ def main():
         yStartRange = minLong + (noOfDeltaY -1)*deltaY
         yEndRange = minLong + (noOfDeltaY)*deltaY
         totalPlacesInQudrant = quadrantNoVsPlacesCount[qudrant]
-        for i in range(0,totalPlacesInQudrant):
+        for i in range(0,totalPlacesInQudrant*5):
             xGenerated= random.uniform(xStartRange,xEndRange)
             yGenerated= random.uniform(yStartRange,yEndRange)
             entry = str(placeID) + '*;*('+str(xGenerated)+','+str(yGenerated)+ ',,,\n' 
