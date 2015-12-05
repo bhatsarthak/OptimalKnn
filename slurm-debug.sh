@@ -1,19 +1,20 @@
 #!/bin/bash
-
 ####### MAKE SURE THAT NODES ARE EXCLUSIVE FOR YOU
 #SBATCH --exclusive
-
+#SBATCH --partition=debug
 ####### CUSTOMIZE THIS SECTION FOR YOUR JOB
 ####### KEEP --mem=64000 TO USE FULL MEMORY
-#SBATCH --partition=general-compute
-#SBATCH --mem=64000
-#SBATCH --job-name="2Nodes4TN4EC"
+#######SBATCH --partition=general-compute
+#SBATCH --mem=20000
+#SBATCH --job-name="2Nodes1TN4EC--4GDriver4GExecutor-200Kparts"
 #SBATCH --nodes=2
-#SBATCH --ntasks-per-node=4
-#SBATCH --output=%j.stdout
-#SBATCH --error=%j.stderr
+#SBATCH --ntasks-per-node=1
+#SBATCH --output=%j4N1C4E5Kparts.stdout
+#SBATCH --error=%j4N1C4E5Kparts.stderr
+#SBATCH --mail-user=sarthakd@buffalo.edu
+#SBATCH --mail-type=ALL
 #SBATCH --time=01:00:00
-
+#SBATCH --constraint=CPU-E5645
 # --ntasks-per-node SETS NUMBER OF SPARK EXECUTORS
 # executor_cores SETS NUMBER OF CORES PER EXECUTOR
 executor_cores=4
@@ -27,8 +28,10 @@ executor_cores=4
 
 
 # SET YOUR COMMAND AND ARGUMENTS
-PROG="knn_nsquare.jar"
-ARGS="/user/sarthakd/newyork_locdate.txt /user/sarthakd/knnoutputnSquare2N4TP 10000 10"
+PROG="knn.jar"
+
+ARGS="/user/sarthakd/200k.txt /user/sarthakd/knnOutput4N3TN4E 20000 10"
+
 
 
 ####### DO NOT EDIT THIS PART
@@ -53,7 +56,10 @@ for i in `seq 0 $LAST`; do
 done
 
 # SUBMIT PYSPARK JOB
-$SPARK_HOME/bin/spark-submit --executor-cores $executor_cores --executor-memory "20G" --driver-memory "20G" --class "SimpleApp" --master $MASTER $PROG $ARGS
+$SPARK_HOME/bin/spark-submit --executor-cores $executor_cores --driver-memory "2G" --executor-memory "4G" --conf spark.storage.memoryFraction=0.2 --class "OptimalKnn" --master $MASTER $PROG $ARGS 
+####$SPARK_HOME/bin/spark-submit --executor-cores $executor_cores --driver-memory "2G" --executor-memory "2G" --class "OptimalKnn" --master $MASTER $PROG $ARGS 
+
+
 
 # CLEAN SPARK JOB
 ssh ${NODES[0]} "cd $SPARK_HOME; ./sbin/stop-master.sh"

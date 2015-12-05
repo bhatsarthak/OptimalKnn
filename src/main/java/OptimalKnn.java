@@ -125,7 +125,7 @@ public class OptimalKnn {
 		// get current date time with Date()
 		Date date = new Date(startTime);
 		System.out.println(dateFormat.format(date));
-		JavaPairRDD<Integer, Iterable<Tuple2<String, String>>> partitionGrouped = output.groupByKey();
+		JavaPairRDD<Integer, Iterable<Tuple2<String, String>>> partitionGrouped = output.groupByKey(4);
 		System.out.println("Passed second map reduce group by at:");
 		System.out.println(dateFormat.format(new Date(startTime)));
 
@@ -163,7 +163,7 @@ public class OptimalKnn {
 		System.out.println(dateFormat.format(new Date(startTime)));
 
 		JavaPairRDD<Integer, Iterable<Tuple2<Integer, String>>> finalOutputGroupByKey = finalOutput
-				.groupByKey();
+				.groupByKey(4);
 		System.out.println("Passed third map reduce groupby at:");
 		System.out.println(dateFormat.format(new Date(startTime)));
 
