@@ -13,24 +13,19 @@ import org.apache.spark.api.java.JavaRDD;
 import org.apache.spark.api.java.JavaPairRDD;
 import org.apache.spark.api.java.JavaSparkContext;
 import org.apache.spark.api.java.function.PairFunction;
-import org.apache.spark.Accumulator;
 
+import java.io.BufferedInputStream;
+import java.io.FileInputStream;
+import java.io.IOException;
+import java.io.InputStream;
 import java.sql.Date;
 import java.text.DateFormat;
 import java.text.SimpleDateFormat;
-import java.util.LinkedList;
-import java.util.Map;
-import java.util.HashMap;
 import java.util.Map.Entry;
 import java.util.SortedMap;
 import java.util.TreeMap;
 import java.util.List;
 import java.util.ArrayList;
-import java.util.TreeSet;
-
-import javax.print.attribute.standard.DateTimeAtCompleted;
-
-import com.google.common.base.Splitter;
 
 public class OptimalKnn {
 	public static void main(String[] args) {
@@ -38,18 +33,18 @@ public class OptimalKnn {
 		Integer d = 2;
 		String datasetR = args[0];
 		Integer noOfPartitions = 10000;
-		if (args.length > 2) {
-			noOfPartitions = Integer.parseInt(args[2]);
-		}
 		if (args.length > 3) {
 			k = Integer.parseInt(args[3]);
 		}
+		if (args.length > 2) {
+			noOfPartitions = FindPartitionSize(datasetR,k,Integer.parseInt(args[2]));
+		}
+		System.out.println("The partition size is:"+noOfPartitions);
 		Date d1 = new Date(System.currentTimeMillis());
 		long startTime = d1.getTime();
 		SparkConf conf = new SparkConf().setAppName("knn");
 		JavaSparkContext ctx = new JavaSparkContext(conf);	
 		final Broadcast<Integer> broadcastK = ctx.broadcast(k);
-		final Broadcast<Integer> broadcastD = ctx.broadcast(d);
 		JavaRDD<String> R = ctx.textFile(datasetR, 1);
 
 		PairFunction<String, String, String> keyData = new PairFunction<String, String, String>() {
@@ -196,7 +191,35 @@ public class OptimalKnn {
 		long end = d2.getTime();
 		System.out.println("Total time taken:" + (end - startTime));
 	}
-
+	static int FindPartitionSize(String inputFile,int k,int noOfNodes){
+		int noOfPoints = countLines(inputFile);
+		int maxParts = noOfPoints/k;
+		int partitionSize =(int) (0.05*noOfNodes*noOfPoints);
+		return (partitionSize>maxParts?maxParts:partitionSize);
+	}
+	public static int countLines(String filename)  {
+	   
+	    try {
+	    	InputStream is = new BufferedInputStream(new FileInputStream(filename));
+	        byte[] c = new byte[1024];
+	        int count = 0;
+	        int readChars = 0;
+	        boolean empty = true;
+	        while ((readChars = is.read(c)) != -1) {
+	            empty = false;
+	            for (int i = 0; i < readChars; ++i) {
+	                if (c[i] == '\n') {
+	                    ++count;
+	                }
+	            }
+	        }
+	        is.close();
+	        return (count == 0 && !empty) ? 1 : count;
+	    } catch(Exception e) {
+	    	e.printStackTrace();
+		    return 0;
+	    }
+	}
 	static String calculateDistance(String rAsString, String sAsString) {
 
 		String r[] = rAsString.split(">>");
