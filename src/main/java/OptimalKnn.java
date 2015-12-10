@@ -37,8 +37,9 @@ public class OptimalKnn {
 			k = Integer.parseInt(args[3]);
 		}
 		if (args.length > 2) {
-			noOfPartitions = FindPartitionSize(datasetR,k,Integer.parseInt(args[2]));
+			noOfPartitions = FindPartitionSize(datasetR,k);
 		}
+		int noOfNodes=Integer.parseInt(args[2]);
 		System.out.println("The partition size is:"+noOfPartitions);
 		Date d1 = new Date(System.currentTimeMillis());
 		long startTime = d1.getTime();
@@ -120,7 +121,7 @@ public class OptimalKnn {
 		// get current date time with Date()
 		Date date = new Date(startTime);
 		System.out.println(dateFormat.format(date));
-		JavaPairRDD<Integer, Iterable<Tuple2<String, String>>> partitionGrouped = output.groupByKey(4);
+		JavaPairRDD<Integer, Iterable<Tuple2<String, String>>> partitionGrouped = output.groupByKey(noOfNodes);
 		System.out.println("Passed second map reduce group by at:");
 		System.out.println(dateFormat.format(new Date(startTime)));
 
@@ -158,7 +159,7 @@ public class OptimalKnn {
 		System.out.println(dateFormat.format(new Date(startTime)));
 
 		JavaPairRDD<Integer, Iterable<Tuple2<Integer, String>>> finalOutputGroupByKey = finalOutput
-				.groupByKey(4);
+				.groupByKey(noOfNodes);
 		System.out.println("Passed third map reduce groupby at:");
 		System.out.println(dateFormat.format(new Date(startTime)));
 
@@ -191,11 +192,12 @@ public class OptimalKnn {
 		long end = d2.getTime();
 		System.out.println("Total time taken:" + (end - startTime));
 	}
-	static int FindPartitionSize(String inputFile,int k,int noOfNodes){
+	static int FindPartitionSize(String inputFile,int k){
 		int noOfPoints = countLines(inputFile);
 		int maxParts = noOfPoints/k;
-		int partitionSize =(int) (0.05*noOfNodes*noOfPoints);
-		return (partitionSize>maxParts?maxParts:partitionSize);
+		//int partitionSize =(int) (0.05*noOfNodes*noOfPoints);
+		//return (partitionSize>maxParts?maxParts:partitionSize);
+		return maxParts;
 	}
 	public static int countLines(String filename)  {
 	   
